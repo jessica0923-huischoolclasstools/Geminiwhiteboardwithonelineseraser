@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>英語字母練習板 (圖層修復版)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        /* 保持 CSS 樣式不變 */
+        :root {
+            --primary-color: #4a90e2;
+            --bg-color: #f5f5f7;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            padding: 20px;
+            color: #333;
+            overscroll-behavior: none;
+        }
+
+        .header-info {
+            background: white;
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .input-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .input-group label {
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .input-group input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+            width: 100px;
+        }
+
+        .toolbar {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 10px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            margin-bottom: 20px;
+            justify-content: center;
+            align-items: center;
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .toolbar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .color-btn {
+            width: 36px;
+            height: 36px;
+            min-width: 36px;
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .color-btn.active {
+            transform: scale(1.2);
+            border-color: #333;
+        }
+
+        .tool-btn {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 8px;
+            background: #eee;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+            white-space: nowrap;
+        }
+        
+        .tool-btn.active {
+            background: #333;
+            color: white;
+        }
+
+        .question-container {
+            background: white;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .q-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .q-title {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+
+        .q-actions button {
+            padding: 6px 12px;
+            font-size: 12px;
+            margin-left: 5px;
+            border: 1px solid #ddd;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        /* 畫布堆疊容器 */
+        .canvas-stack {
+            position: relative;
+            width: 100%;
+            height: auto;
+            aspect-ratio: 800 / 240; 
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            overflow: hidden;
+            background: white; 
+        }
+
+        .canvas-stack canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+            touch-action: none; 
+        }
+
+        .bg-layer {
+            z-index: 1;
+            pointer-events: none; 
+        }
+        
+        .draw-layer {
+            z-index: 2;
+            cursor: crosshair;
+            background: transparent; 
+        }
+
+        .footer-actions {
+            text-align: center;
+            margin-top: 30px;
+            margin-bottom: 80px;
+        }
+
+        .download-all-btn {
+            background: #28a745;
+            color: white;
+            padding: 15px 40px;
+            font-size: 18px;
+            border: none;
+            border-radius: 50px;
+            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        /* 顏色定義 */
+        .bg-black { background-color: black; }
+        .bg-red { background-color: #ff0000; }
+        .bg-blue { background-color: #0000ff; }
+        .bg-green { background-color: green; }
+        .bg-purple { background-color: purple; }
+        .bg-pink { background-color: #ff69b4; }
+        .bg-yellow { background-color: #ffd700; }
+
+    </style>
+</head>
+<body>
+
+    <div class="header-info" id="studentInfo">
+        <div class="input-group">
+            <label>班級</label>
+            <input type="text" id="classInput" placeholder="301">
+        </div>
+        <div class="input-group">
+            <label>座號</label>
+            <input type="number" id="numInput" placeholder="01">
+        </div>
+        <div class="input-group">
+            <label>姓名</label>
+            <input type="text" id="nameInput" placeholder="姓名">
+        </div>
+    </div>
+
+    <div class="toolbar">
+        <button class="color-btn bg-black active" onclick="setColor('black', this)"></button>
+        <button class="color-btn bg-red" onclick="setColor('#ff0000', this)"></button>
+        <button class="color-btn bg-blue" onclick="setColor('#0000ff', this)"></button>
+        <button class="color-btn bg-green" onclick="setColor('green', this)"></button>
+        <button class="color-btn bg-purple" onclick="setColor('purple', this)"></button>
+        <button class="color-btn bg-pink" onclick="setColor('#ff69b4', this)"></button>
+        <button class="color-btn bg-yellow" onclick="setColor('#ffd700', this)"></button>
+        
+        <div style="width: 1px; height: 30px; background: #ddd; margin: 0 10px;"></div>
+        
+        <button class="tool-btn" id="eraserBtn" onclick="setEraser(this)">橡皮擦</button>
+    </div>
+
+    <div id="questions-wrapper"></div>
+
+    <div class="footer-actions">
+        <button class="download-all-btn" onclick="downloadAllPDF()">📥 下載全部成果 (PDF)</button>
+    </div>
+
+    <script>
+        let currentColor = 'black';
+        let isEraser = false;
+        const lineWidth = 3;
+        const eraserWidth = 35; // 橡皮擦稍微大一點，方便觸控
+        const totalQuestions = 10;
+        const canvasRes = { w: 800, h: 240 };
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            const wrapper = document.getElementById('questions-wrapper');
+            
+            for (let i = 1; i <= totalQuestions; i++) {
+                const qHtml = `
+                    <div class="question-container">
+                        <div class="q-header">
+                            <span class="q-title">第 ${i} 題</span>
+                            <div class="q-actions">
+                                <button onclick="clearCanvas(${i})">🗑️ 重寫</button>
+                                <button onclick="downloadSingle(${i})">💾 下載此題</button>
+                            </div>
+                        </div>
+                        <div class="canvas-stack">
+                            <canvas id="bg-canvas-${i}" width="${canvasRes.w}" height="${canvasRes.h}" class="bg-layer"></canvas>
+                            <canvas id="draw-canvas-${i}" width="${canvasRes.w}" height="${canvasRes.h}" class="draw-layer"></canvas>
+                        </div>
+                    </div>
+                `;
+                wrapper.insertAdjacentHTML('beforeend', qHtml);
+                initCanvas(i);
+            }
+        });
+
+        function setColor(color, btn) {
+            isEraser = false;
+            currentColor = color;
+            document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('eraserBtn').classList.remove('active');
+            btn.classList.add('active');
+        }
+
+        function setEraser(btn) {
+            isEraser = true;
+            document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+        }
+
+        function initCanvas(id) {
+            const bgCanvas = document.getElementById(`bg-canvas-${id}`);
+            const drawCanvas = document.getElementById(`draw-canvas-${id}`);
+            
+            const bgCtx = bgCanvas.getContext('2d');
+            const drawCtx = drawCanvas.getContext('2d');
+            
+            drawBackground(bgCanvas, bgCtx);
+
+            let painting = false;
+
+            // 取得座標 (確保針對頂層 drawCanvas)
+            function getPos(e) {
+                const rect = drawCanvas.getBoundingClientRect();
+                const scaleX = drawCanvas.width / rect.width;
+                const scaleY = drawCanvas.height / rect.height;
+                let clientX, clientY;
+                
+                if (e.touches && e.touches.length > 0) {
+                    clientX = e.touches[0].clientX;
+                    clientY = e.touches[0].clientY;
+                } else {
+                    clientX = e.clientX;
+                    clientY = e.clientY;
+                }
+                return {
+                    x: (clientX - rect.left) * scaleX,
+                    y: (clientY - rect.top) * scaleY
+                };
+            }
+
+            function startPosition(e) {
+                if(e.cancelable) e.preventDefault();
+                painting = true;
+                const pos = getPos(e);
+                
+                // *** 關鍵修復點 1: 確保在點擊瞬間就設定好合成模式 ***
+                drawCtx.globalCompositeOperation = isEraser ? 'destination-out' : 'source-over'; 
+
+                drawCtx.beginPath();
+                drawCtx.moveTo(pos.x, pos.y);
+                draw(e);
+            }
+
+            function endPosition() {
+                painting = false;
+                drawCtx.beginPath();
+                drawCtx.globalCompositeOperation = 'source-over'; 
+            }
+
+            function draw(e) {
+                if (!painting) return;
+                if(e.cancelable) e.preventDefault();
+
+                const pos = getPos(e);
+
+                drawCtx.lineWidth = isEraser ? eraserWidth : lineWidth;
+                drawCtx.lineCap = 'round';
+                drawCtx.lineJoin = 'round';
+                
+                // *** 關鍵修復點 2: 在 draw 過程中只需設定顏色 ***
+                // 合成模式已在 startPosition 設定
+                drawCtx.strokeStyle = isEraser ? 'rgba(0,0,0,1)' : currentColor; 
+                
+
+                drawCtx.lineTo(pos.x, pos.y);
+                drawCtx.stroke();
+                drawCtx.beginPath();
+                drawCtx.moveTo(pos.x, pos.y);
+            }
+
+            // 事件綁定在頂層 drawCanvas
+            drawCanvas.addEventListener('mousedown', startPosition);
+            drawCanvas.addEventListener('mouseup', endPosition);
+            drawCanvas.addEventListener('mousemove', draw);
+            drawCanvas.addEventListener('mouseleave', endPosition);
+
+            drawCanvas.addEventListener('touchstart', startPosition, {passive: false});
+            drawCanvas.addEventListener('touchend', endPosition);
+            drawCanvas.addEventListener('touchmove', draw, {passive: false});
+        }
+
+        // 繪製背景線 (在底層 Canvas 執行)
+        function drawBackground(canvas, ctx) {
+            const width = canvas.width;
+            const height = canvas.height;
+            
+            const paddingY = 40; 
+            const contentHeight = height - (paddingY * 2);
+            const gap = contentHeight / 3;
+
+            const lineYPositions = [
+                paddingY,             
+                paddingY + gap,       
+                paddingY + gap * 2,   // 第三條線
+                paddingY + gap * 3    
+            ];
+
+            ctx.lineWidth = 1.5;
+
+            lineYPositions.forEach((y, index) => {
+                ctx.beginPath();
+                if (index === 2) {
+                    ctx.strokeStyle = '#ff4d4d'; 
+                    ctx.setLineDash([8, 6]);     
+                } else {
+                    ctx.strokeStyle = '#4a90e2';
+                    ctx.setLineDash([]);         
+                }
+                ctx.moveTo(10, y);
+                ctx.lineTo(width - 10, y);
+                ctx.stroke();
+            });
+            ctx.setLineDash([]);
+        }
+
+        // 清除畫布：只清空頂層的繪圖層
+        function clearCanvas(id) {
+            const drawCanvas = document.getElementById(`draw-canvas-${id}`);
+            const ctx = drawCanvas.getContext('2d');
+            ctx.globalCompositeOperation = 'source-over'; 
+            ctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+        }
+
+        // 合併兩個 Canvas 成單一圖片
+        function combineCanvases(id) {
+            const bgCanvas = document.getElementById(`bg-canvas-${id}`);
+            const drawCanvas = document.getElementById(`draw-canvas-${id}`);
+            
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = canvasRes.w;
+            tempCanvas.height = canvasRes.h;
+            const tempCtx = tempCanvas.getContext('2d');
+
+            tempCtx.fillStyle = 'white';
+            tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+            tempCtx.drawImage(bgCanvas, 0, 0);
+            tempCtx.drawImage(drawCanvas, 0, 0);
+            
+            return tempCanvas;
+        }
+
+        function downloadSingle(id) {
+            const combinedCanvas = combineCanvases(id);
+            const name = document.getElementById('nameInput').value || 'User';
+            const link = document.createElement('a');
+            link.download = `${name}_Q${id}.png`;
+            link.href = combinedCanvas.toDataURL('image/png'); // 使用 PNG 確保透明度正確 (雖然 PDF 用 JPEG)
+            link.click();
+        }
+
+        async function downloadAllPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            const className = document.getElementById('classInput').value || '';
+            const num = document.getElementById('numInput').value || '';
+            const name = document.getElementById('nameInput').value || '';
+            
+            if(!name) {
+                alert("貼心提醒：建議先填寫姓名，檔案才好辨識喔！");
+            }
+
+            const fileName = `${className}_${num}_${name}_English_Practice.pdf`;
+
+            doc.setFontSize(14);
+            doc.text(`Class: ${className}   No: ${num}   Name: ${name}`, 15, 15);
+            doc.line(15, 20, 195, 20);
+
+            let yPos = 30;
+            const pageHeight = doc.internal.pageSize.height;
+            const pageWidth = doc.internal.pageSize.width;
+            const margin = 15;
+            const imgWidth = pageWidth - (margin * 2);
+            const imgHeight = imgWidth * (canvasRes.h / canvasRes.w); 
+
+            for (let i = 1; i <= totalQuestions; i++) {
+                const combinedCanvas = combineCanvases(i);
+                const imgData = combinedCanvas.toDataURL('image/jpeg', 0.8);
+                
+                if (yPos + imgHeight + 10 > pageHeight) {
+                    doc.addPage();
+                    yPos = 20;
+                }
+
+                doc.setFontSize(10);
+                doc.setTextColor(100);
+                doc.text(`Q${i}`, margin, yPos - 2);
+                doc.addImage(imgData, 'JPEG', margin, yPos, imgWidth, imgHeight);
+                yPos += (imgHeight + 15);
+            }
+
+            doc.save(fileName);
+        }
+    </script>
+</body>
+</html>
